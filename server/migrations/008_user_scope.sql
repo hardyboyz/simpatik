@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN district_id INT DEFAULT NULL AFTER puskesmas;
+ALTER TABLE users ADD COLUMN village_id INT DEFAULT NULL AFTER district_id;

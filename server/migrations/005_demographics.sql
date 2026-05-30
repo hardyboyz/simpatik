@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS demographics (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  village_id INT NOT NULL,
+  year VARCHAR(4) NOT NULL DEFAULT '2026',
+  baby_l INT DEFAULT 0,
+  baby_p INT DEFAULT 0,
+  baby_total INT DEFAULT 0,
+  infant_l INT DEFAULT 0,
+  infant_p INT DEFAULT 0,
+  infant_total INT DEFAULT 0,
+  baduta_l INT DEFAULT 0,
+  baduta_p INT DEFAULT 0,
+  baduta_total INT DEFAULT 0,
+  wus_total INT DEFAULT 0,
+  wus_pregnant INT DEFAULT 0,
+  wus_not_pregnant INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_village_year (village_id, year),
+  FOREIGN KEY (village_id) REFERENCES villages(id) ON DELETE CASCADE
+);
