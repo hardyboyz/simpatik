@@ -13,10 +13,10 @@ const routes = [
     component: () => import('../components/layout/AppLayout.vue'),
     meta: { requiresAuth: true },
     children: [
-      { path: '', name: 'Dashboard', component: () => import('../views/dashboard/DashboardView.vue') },
+      //{ path: '', name: 'Dashboard', component: () => import('../views/dashboard/DashboardView.vue') },
 
       // ── E-KOHORT ──
-      { path: 'ekohort', name: 'E-Kohort', component: () => import('../views/eKohort/EKohortDashboard.vue') },
+      { path: 'ekohort', name: 'Dashboard', component: () => import('../views/eKohort/EKohortDashboard.vue') },
       { path: 'ekohort/kms', name: 'KmsDigital', component: () => import('../views/eKohort/KmsDigitalView.vue') },
       { path: 'ekohort/kms/:id', name: 'KmsDetail', component: () => import('../views/eKohort/KmsDigitalView.vue') },
       { path: 'ekohort/pelayanan', name: 'PelayananHariIni', component: () => import('../views/eKohort/PelayananHariIniView.vue') },

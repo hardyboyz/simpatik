@@ -17,7 +17,7 @@
       <div class="nav-section">Menu Utama</div>
       <router-link to="/ekohort" class="nav-item" @click="closeSidebar">
         <span class="nav-icon">🏠</span>
-        <span class="nav-text">Beranda & Ringkasan</span>
+        <span class="nav-text">Dashboard</span>
       </router-link>
       <router-link to="/ekohort/kms" class="nav-item" @click="closeSidebar">
         <span class="nav-icon">📋</span>
@@ -146,5 +146,5 @@ const auth = useAuthStore()
 const sidebarOpen = inject('sidebarOpen')
 const closeSidebar = inject('closeSidebar')
 
-const laporanOpen = ref(true)
+const laporanOpen = ref(false)
 </script>

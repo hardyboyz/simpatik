@@ -94,7 +94,8 @@ import { useUserScope } from '../../composables/useUserScope'
 import Pagination from '../../components/Pagination.vue'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
-import 'jspdf-autotable'
+import { applyPlugin } from 'jspdf-autotable'
+applyPlugin(jsPDF)
 
 const scope = useUserScope()
 const filterYear = ref(2026)
