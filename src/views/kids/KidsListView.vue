@@ -3,6 +3,10 @@
     <div class="flex-between mb-2">
       <div class="flex gap-1">
         <input v-model="searchQuery" class="form-input" placeholder="Cari nama balita..." style="width: 250px;">
+        <select v-model="filterDistrict" class="form-select" style="width: 200px;" @change="onDistrictChange">
+          <option v-if="districts.length > 1" value="">Semua Kecamatan</option>
+          <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
         <select v-model="villageFilter" class="form-select" style="width: 200px;">
           <option value="">Semua Desa</option>
           <option v-for="v in villages" :key="v.id" :value="v.name">{{ v.name }}</option>
@@ -67,9 +71,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useKidsStore } from '../../stores/kids'
-import { villagesApi } from '../../api'
+import { villagesApi, districtsApi } from '../../api'
 import { useTable } from '../../composables/useTable'
 import { useUserScope } from '../../composables/useUserScope'
 import Pagination from '../../components/Pagination.vue'
@@ -79,12 +83,30 @@ const kidsStore = useKidsStore()
 const scope = useUserScope()
 const searchQuery = ref('')
 const villageFilter = ref('')
+const filterDistrict = ref('')
+const districts = ref([])
 const villages = ref([])
 
-async function load() {
+onMounted(async () => {
   await kidsStore.loadKids()
   try {
-    const { data } = await villagesApi.list()
+    const { data } = await districtsApi.list()
+    districts.value = data
+    if (data.length === 1) filterDistrict.value = data[0].id
+  } catch {}
+  await loadVillages()
+})
+
+watch(filterDistrict, async () => {
+  villageFilter.value = ''
+  await loadVillages()
+})
+
+async function loadVillages() {
+  try {
+    const params = {}
+    if (filterDistrict.value) params.district_id = filterDistrict.value
+    const { data } = await villagesApi.list(params)
     villages.value = data
     if (!scope.isAdmin.value && scope.villageId.value) {
       villages.value = villages.value.filter(v => v.id === Number(scope.villageId.value))
@@ -92,7 +114,10 @@ async function load() {
   } catch {}
 }
 
-onMounted(load)
+function onDistrictChange() {
+  villageFilter.value = ''
+  loadVillages()
+}
 
 const filteredKids = computed(() => {
   let result = kidsStore.kids

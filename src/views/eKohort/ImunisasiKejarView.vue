@@ -7,7 +7,7 @@
       </div>
       <div class="filter-row">
         <select v-model="filterDistrict" class="form-select" style="width:200px;" @change="onDistrictChange">
-          <option value="">Semua Kecamatan</option>
+          <option v-if="!auth.userDistrictId" value="">Semua Kecamatan</option>
           <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
         </select>
         <select v-model="filterVillage" class="form-select" style="width:200px;">
@@ -91,17 +91,19 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '../../stores/auth'
 import { eKohortApi, vaccinesApi, villagesApi, districtsApi } from '../../api'
 import WhatsAppButton from '../../components/eKohort/WhatsAppButton.vue'
 import Pagination from '../../components/Pagination.vue'
 import Swal from 'sweetalert2'
 
+const auth = useAuthStore()
 const loading = ref(true)
 const dropoutList = ref([])
 const districts = ref([])
 const allVillages = ref([])
 const allVaccines = ref([])
-const filterDistrict = ref('')
+const filterDistrict = ref(auth.userDistrictId || '')
 const filterVillage = ref('')
 const filterVaccine = ref('')
 

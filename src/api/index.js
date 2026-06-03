@@ -43,7 +43,16 @@ export const usersApi = {
 
 // Districts
 export const districtsApi = {
-  list: () => api.get('/districts')
+  list: async () => {
+    const res = await api.get('/districts')
+    try {
+      const user = JSON.parse(localStorage.getItem('user'))
+      if (user?.district_id) {
+        return { ...res, data: res.data.filter(d => d.id === user.district_id) }
+      }
+    } catch {}
+    return res
+  }
 }
 
 // Villages
@@ -166,5 +175,6 @@ export const eKohortApi = {
   mikroplanningExport: (params) => api.get('/ekohort/mikroplanning/export', { params }),
   whatsappSend: (data) => api.post('/ekohort/whatsapp/send', data),
   whatsappTriggerReminder: () => api.post('/ekohort/whatsapp/trigger-reminder'),
-  whatsappLogs: (params) => api.get('/ekohort/whatsapp/logs', { params })
+  whatsappLogs: (params) => api.get('/ekohort/whatsapp/logs', { params }),
+  growthNutrition: (params) => api.get('/ekohort/dashboard/growth-nutrition', { params })
 }

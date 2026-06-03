@@ -41,7 +41,7 @@ async function handleLogin() {
   error.value = ''
   try {
     await auth.login(email.value, password.value)
-    router.push('/')
+    router.push('/ekohort')
   } catch (e) {
     error.value = e.response?.data?.error || 'Email atau password salah'
   } finally {

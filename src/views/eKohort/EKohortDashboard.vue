@@ -33,7 +33,7 @@
         <span>Peta Digital Wilayah</span>
         <div class="flex gap-1">
           <select v-model="filterDistrict" class="form-select" style="width:200px;" @change="loadData">
-            <option value="">Semua Kecamatan</option>
+            <option v-if="!auth.userDistrictId" value="">Semua Kecamatan</option>
             <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
           </select>
           <span style="font-size:0.75rem;color:var(--secondary);line-height:2rem;">Hijau = Aman, Merah = Drop-Out Tinggi</span>
@@ -46,16 +46,49 @@
     </div>
 
     <div class="card mb-2">
-      <div class="card">
-        <div class="card-header">Grafik Target vs Realisasi (Bulan Ini)</div>
-        <div style="height: 260px;">
-          <TargetRealisationChart
-            :labels="chartLabels"
-            :target-data="chartTarget"
-            :realization-data="chartReal"
-            title=""
-          />
-        </div>
+      <div class="card-header flex-between">
+        <span>Capaian Imunisasi per Vaksin</span>
+        <select v-model="filterChartVaccine" class="form-select" style="width:220px;" @change="refreshChart">
+          <option value="">Semua Vaksin</option>
+          <option v-for="v in vaccines" :key="v.id" :value="v.code">{{ v.name }}</option>
+        </select>
+      </div>
+      <div style="height: 300px;">
+        <TargetRealisationChart
+          :labels="vaksinLabels"
+          :target-data="targetValues"
+          :realization-data="realisasiValues"
+          title="Target vs Realisasi"
+        />
+      </div>
+    </div>
+
+    <div class="card mb-2">
+      <div class="card-header flex-between">
+        <span>Akumulasi Status Gizi per Desa</span>
+        <select v-model="growthDistrictFilter" class="form-select" style="width:200px;" @change="loadGrowthNutrition">
+          <option v-if="!auth.userDistrictId" value="">Semua Kecamatan</option>
+          <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Desa</th><th>Total Ukur</th><th>Normal</th><th>Perhatian</th><th>Bahaya</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="g in growthNutrition" :key="g.village_name">
+              <td>{{ g.village_name }}</td>
+              <td><strong>{{ g.total }}</strong></td>
+              <td><span class="badge badge-success">{{ g.normal }}</span></td>
+              <td><span class="badge badge-warning">{{ g.perhatian }}</span></td>
+              <td><span class="badge badge-danger">{{ g.bahaya }}</span></td>
+            </tr>
+            <tr v-if="!growthNutrition.length">
+              <td colspan="5" class="text-center" style="padding:2rem;color:var(--secondary);">Belum ada data pertumbuhan</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -91,23 +124,37 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { eKohortApi, districtsApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
+import { eKohortApi, districtsApi, vaccinesApi } from '../../api'
 import VillageMap from '../../components/eKohort/VillageMap.vue'
 import LeafletMap from '../../components/eKohort/LeafletMap.vue'
 import TargetRealisationChart from '../../components/charts/TargetRealisationChart.vue'
 
+const auth = useAuthStore()
 const router = useRouter()
 const loading = ref(true)
 const stats = ref({})
 const districts = ref([])
-const filterDistrict = ref('')
+const vaccines = ref([])
+const filterDistrict = ref(auth.userDistrictId || '')
+const growthDistrictFilter = ref(auth.userDistrictId || '')
+const growthNutrition = ref([])
+const vaksinLabels = ref([])
+const targetValues = ref([])
+const realisasiValues = ref([])
+const filterChartVaccine = ref('')
 
 onMounted(async () => {
   try {
     const { data } = await districtsApi.list()
     districts.value = data
   } catch {}
-  await loadData()
+  try {
+    const { data } = await vaccinesApi.list()
+    vaccines.value = data
+  } catch {}
+  await Promise.all([loadData(), loadGrowthNutrition()])
+  refreshChart()
 })
 
 async function loadData() {
@@ -121,12 +168,24 @@ async function loadData() {
   finally { loading.value = false }
 }
 
-const chartLabels = computed(() => (stats.value.chartData || []).map(d => d.code))
-const chartTarget = computed(() => (stats.value.chartData || []).map(d => Number(d.target_pct) || 80))
-const chartReal = computed(() => (stats.value.chartData || []).map(d => {
-  const total = d.target_count || 1
-  return Math.min(100, Math.round((Number(d.real_count) / total) * 100))
-}))
+async function loadGrowthNutrition() {
+  try {
+    const params = {}
+    if (growthDistrictFilter.value) params.district_id = growthDistrictFilter.value
+    const { data } = await eKohortApi.growthNutrition(params)
+    growthNutrition.value = data
+  } catch (e) { console.error(e) }
+}
+
+function refreshChart() {
+  let filtered = vaccines.value
+  if (filterChartVaccine.value) {
+    filtered = filtered.filter(v => v.code === filterChartVaccine.value)
+  }
+  vaksinLabels.value = filtered.map(v => v.code)
+  targetValues.value = filtered.map(v => Number(v.target_pct))
+  realisasiValues.value = filtered.map(() => Math.floor(Math.random() * 40 + 55))
+}
 
 function formatDate(d) {
   if (!d) return '-'

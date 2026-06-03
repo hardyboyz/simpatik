@@ -3,7 +3,7 @@
     <div class="flex-between mb-2">
       <div class="flex gap-1">
         <select v-model="filterDistrict" class="form-select" style="width: 200px;">
-          <option value="">Semua Kecamatan</option>
+          <option v-if="districts.length > 1" value="">Semua Kecamatan</option>
           <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
         </select>
       </div>

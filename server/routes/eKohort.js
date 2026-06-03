@@ -83,14 +83,55 @@ router.get('/dashboard', authenticate, async (req, res) => {
       ORDER BY k.updated_at DESC LIMIT 5
     `, [...scopeParams])
 
+    const [growthNutrition] = await pool.query(`
+      SELECT v.name as village_name,
+        COUNT(gr.id) as total,
+        SUM(CASE WHEN gr.nutritional_status IS NULL OR gr.nutritional_status = '' THEN 1 ELSE 0 END) as normal,
+        SUM(CASE WHEN gr.nutritional_status IN ('gizi-kurang','stunting','overweight') THEN 1 ELSE 0 END) as perhatian,
+        SUM(CASE WHEN gr.nutritional_status = 'gizi-buruk' THEN 1 ELSE 0 END) as bahaya
+      FROM growth_records gr
+      JOIN kids k ON gr.kid_id = k.id
+      JOIN villages v ON k.village_id = v.id
+      WHERE 1=1 ${scopeSql}
+      GROUP BY v.id, v.name
+      ORDER BY v.name
+    `, [...scopeParams])
+
     res.json({
       totalSasaran: totalSasaran.total,
       imunisasiLengkap: lengkap.total,
       dropOut: dropOut.total,
       mapData,
       chartData: chartTargetRealisasi,
-      recentDropOut
+      recentDropOut,
+      growthNutrition
     })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/dashboard/growth-nutrition', authenticate, async (req, res) => {
+  try {
+    const { district_id } = req.query
+    let scopeSql = ''
+    const scopeParams = []
+    if (district_id) { scopeSql = ' AND v.district_id = ?'; scopeParams.push(district_id) }
+
+    const [rows] = await pool.query(`
+      SELECT v.name as village_name,
+        COUNT(gr.id) as total,
+        SUM(CASE WHEN gr.nutritional_status IS NULL OR gr.nutritional_status = '' THEN 1 ELSE 0 END) as normal,
+        SUM(CASE WHEN gr.nutritional_status IN ('gizi-kurang','stunting','overweight') THEN 1 ELSE 0 END) as perhatian,
+        SUM(CASE WHEN gr.nutritional_status = 'gizi-buruk' THEN 1 ELSE 0 END) as bahaya
+      FROM growth_records gr
+      JOIN kids k ON gr.kid_id = k.id
+      JOIN villages v ON k.village_id = v.id
+      WHERE 1=1 ${scopeSql}
+      GROUP BY v.id, v.name
+      ORDER BY v.name
+    `, scopeParams)
+    res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

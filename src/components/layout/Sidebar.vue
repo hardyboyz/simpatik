@@ -8,13 +8,13 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-section">Menu Utama</div>
+      <!-- <div class="nav-section">Menu Utama</div>
       <router-link to="/" class="nav-item" @click="closeSidebar">
         <span class="nav-icon">📊</span>
         <span class="nav-text">Dashboard</span>
-      </router-link>
+      </router-link> -->
 
-      <div class="nav-section">e-Kohort Digital</div>
+      <div class="nav-section">Menu Utama</div>
       <router-link to="/ekohort" class="nav-item" @click="closeSidebar">
         <span class="nav-icon">🏠</span>
         <span class="nav-text">Beranda & Ringkasan</span>

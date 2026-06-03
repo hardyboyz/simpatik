@@ -7,7 +7,7 @@
           <div class="form-group">
             <label class="form-label">Kecamatan</label>
             <select v-model="filterDistrict" class="form-select" @change="onDistrictChange">
-              <option value="">Semua Kecamatan</option>
+              <option v-if="districts.length > 1" value="">Semua Kecamatan</option>
               <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
             </select>
           </div>
