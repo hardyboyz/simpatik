@@ -5,12 +5,12 @@
     </div>
     <div v-else class="empty-chart">Belum ada data pertumbuhan</div>
     <div class="chart-info">
-      <span class="info-bb">Berat Badan (kg)</span>
+      <span class="info-bb">Weight (kg)</span>
       <span class="info-legend">
-        <span class="legend-item"><span class="dot" style="background:#0d6efd"></span> Anak</span>
-        <span class="legend-item"><span class="dot" style="background:#22c55e"></span> Normal (-2SD s.d +1SD)</span>
-        <span class="legend-item"><span class="dot" style="background:#eab308"></span> Perhatian</span>
-        <span class="legend-item"><span class="dot" style="background:#ef4444"></span> Bahaya</span>
+        <span class="legend-item"><span class="dot" style="background:#0d6efd"></span> Child</span>
+        <span class="legend-item"><span class="dot" style="background:#22c55e"></span> Normal (-2SD to +1SD)</span>
+        <span class="legend-item"><span class="dot" style="background:#eab308"></span> Warning</span>
+        <span class="legend-item"><span class="dot" style="background:#ef4444"></span> Danger</span>
       </span>
     </div>
   </div>
@@ -91,7 +91,7 @@ const chartData = computed(() => {
 
   if (childData.value.length > 0) {
     datasets.push({
-      label: 'Anak',
+      label: 'Child',
       data: childData.value,
       borderColor: '#0d6efd',
       backgroundColor: '#0d6efd',
@@ -117,9 +117,9 @@ const chartOptions = {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        title: items => `Usia: ${items[0].parsed.x.toFixed(1)} bulan`,
+        title: items => `Age: ${items[0].parsed.x.toFixed(1)} months`,
         label: ctx => {
-          if (ctx.dataset.label === 'Anak') return `BB: ${ctx.parsed.y.toFixed(2)} kg`
+          if (ctx.dataset.label === 'Child') return `Weight: ${ctx.parsed.y.toFixed(2)} kg`
           return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} kg`
         }
       }
@@ -130,7 +130,7 @@ const chartOptions = {
       type: 'linear',
       min: 0,
       max: 60,
-      title: { display: true, text: 'Usia (bulan)' },
+      title: { display: true, text: 'Age (months)' },
       ticks: {
         stepSize: 3,
         callback: v => {
@@ -143,7 +143,7 @@ const chartOptions = {
     y: {
       min: 0,
       max: 22,
-      title: { display: true, text: 'Berat Badan (kg)' },
+      title: { display: true, text: 'Weight (kg)' },
       ticks: { stepSize: 2 },
       grid: { color: 'rgba(0,0,0,0.05)' }
     }

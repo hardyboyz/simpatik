@@ -113,24 +113,41 @@ router.get('/dashboard', authenticate, async (req, res) => {
 
 router.get('/dashboard/growth-nutrition', authenticate, async (req, res) => {
   try {
-    const { district_id } = req.query
-    let scopeSql = ''
-    const scopeParams = []
-    if (district_id) { scopeSql = ' AND v.district_id = ?'; scopeParams.push(district_id) }
+    const { district_id, month, year } = req.query
+    const params = []
+    let monthSql = ''
+    if (month && year) {
+      monthSql = 'WHERE MONTH(g2.date_measured) = ? AND YEAR(g2.date_measured) = ?'
+      params.push(month, year)
+    }
+    let districtSql = ''
+    if (district_id) {
+      districtSql = ' WHERE v.district_id = ?'
+      params.push(district_id)
+    }
 
     const [rows] = await pool.query(`
       SELECT v.name as village_name,
-        COUNT(gr.id) as total,
-        SUM(CASE WHEN gr.nutritional_status IS NULL OR gr.nutritional_status = '' THEN 1 ELSE 0 END) as normal,
-        SUM(CASE WHEN gr.nutritional_status IN ('gizi-kurang','stunting','overweight') THEN 1 ELSE 0 END) as perhatian,
-        SUM(CASE WHEN gr.nutritional_status = 'gizi-buruk' THEN 1 ELSE 0 END) as bahaya
-      FROM growth_records gr
-      JOIN kids k ON gr.kid_id = k.id
-      JOIN villages v ON k.village_id = v.id
-      WHERE 1=1 ${scopeSql}
+        COUNT(DISTINCT lr.kid_id) as total,
+        COUNT(DISTINCT CASE WHEN COALESCE(lr.nutritional_status, '') = '' THEN lr.kid_id END) as normal,
+        COUNT(DISTINCT CASE WHEN lr.nutritional_status IN ('gizi-kurang','stunting','overweight') THEN lr.kid_id END) as perhatian,
+        COUNT(DISTINCT CASE WHEN lr.nutritional_status = 'gizi-buruk' THEN lr.kid_id END) as bahaya
+      FROM villages v
+      LEFT JOIN (
+        SELECT gr.kid_id, gr.nutritional_status, k.village_id
+        FROM growth_records gr
+        JOIN kids k ON gr.kid_id = k.id
+        WHERE gr.id IN (
+          SELECT MAX(g2.id)
+          FROM growth_records g2
+          ${monthSql}
+          GROUP BY g2.kid_id
+        )
+      ) lr ON v.id = lr.village_id
+      ${districtSql}
       GROUP BY v.id, v.name
       ORDER BY v.name
-    `, scopeParams)
+    `, params)
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -203,6 +220,29 @@ router.post('/kms/:id/growth', authenticate, async (req, res) => {
        date_measured || new Date(), nutritional_status || null, notes || null, req.user.id]
     )
     res.status(201).json({ id: result.insertId })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.put('/kms/growth/:id', authenticate, async (req, res) => {
+  try {
+    const { weight, height, date_measured, head_circumference, nutritional_status, notes } = req.body
+    await pool.query(
+      `UPDATE growth_records SET weight=?, height=?, head_circumference=?, date_measured=?, nutritional_status=?, notes=? WHERE id=?`,
+      [weight || null, height || null, head_circumference || null,
+       date_measured || new Date(), nutritional_status || null, notes || null, req.params.id]
+    )
+    res.json({ message: 'Updated' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.delete('/kms/growth/:id', authenticate, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM growth_records WHERE id = ?', [req.params.id])
+    res.json({ message: 'Deleted' })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

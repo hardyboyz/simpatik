@@ -66,15 +66,24 @@
     <div class="card mb-2">
       <div class="card-header flex-between">
         <span>Akumulasi Status Gizi per Desa</span>
-        <select v-model="growthDistrictFilter" class="form-select" style="width:200px;" @change="loadGrowthNutrition">
-          <option v-if="!auth.userDistrictId" value="">Semua Kecamatan</option>
-          <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
+        <div class="flex gap-1">
+          <select v-model="growthDistrictFilter" class="form-select" style="width:160px;" @change="loadGrowthNutrition">
+            <option v-if="!auth.userDistrictId" value="">Semua Kecamatan</option>
+            <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
+          </select>
+          <select v-model="growthMonth" class="form-select" style="width:120px;" @change="loadGrowthNutrition">
+            <option value="">Bulan</option>
+            <option v-for="m in months" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
+          <select v-model="growthYear" class="form-select" style="width:100px;" @change="loadGrowthNutrition">
+            <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </div>
       </div>
       <div class="table-container">
         <table>
           <thead>
-            <tr><th>Desa</th><th>Total Ukur</th><th>Normal</th><th>Perhatian</th><th>Bahaya</th></tr>
+            <tr><th>Desa</th><th>Total Kids</th><th>Normal</th><th>Perhatian</th><th>Bahaya</th></tr>
           </thead>
           <tbody>
             <tr v-for="g in growthNutrition" :key="g.village_name">
@@ -139,6 +148,16 @@ const vaccines = ref([])
 const filterDistrict = ref(auth.userDistrictId || '')
 const growthDistrictFilter = ref(auth.userDistrictId || '')
 const growthNutrition = ref([])
+const growthMonth = ref('')
+const growthYear = ref(new Date().getFullYear())
+const months = [
+  { value: 1, label: 'Jan' }, { value: 2, label: 'Feb' }, { value: 3, label: 'Mar' },
+  { value: 4, label: 'Apr' }, { value: 5, label: 'Mei' }, { value: 6, label: 'Jun' },
+  { value: 7, label: 'Jul' }, { value: 8, label: 'Ags' }, { value: 9, label: 'Sep' },
+  { value: 10, label: 'Okt' }, { value: 11, label: 'Nov' }, { value: 12, label: 'Des' },
+]
+const years = []
+for (let y = new Date().getFullYear(); y >= 2020; y--) years.push(y)
 const vaksinLabels = ref([])
 const targetValues = ref([])
 const realisasiValues = ref([])
@@ -172,6 +191,8 @@ async function loadGrowthNutrition() {
   try {
     const params = {}
     if (growthDistrictFilter.value) params.district_id = growthDistrictFilter.value
+    if (growthMonth.value) params.month = growthMonth.value
+    if (growthYear.value) params.year = growthYear.value
     const { data } = await eKohortApi.growthNutrition(params)
     growthNutrition.value = data
   } catch (e) { console.error(e) }

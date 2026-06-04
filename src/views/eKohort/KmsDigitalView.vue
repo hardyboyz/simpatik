@@ -76,13 +76,39 @@
 
     <div v-if="kidDetail" class="grid grid-2 mb-2">
       <div class="card">
+        <div class="card-header">Riwayat Pertumbuhan (BB/TB)</div>
+        <GrowthChart :records="growthRecords" :birth-date="kidDetail.birth_date" :gender="kidDetail.gender" />
+      </div>
+      <div class="card">
         <div class="card-header flex-between">
-          <span>Riwayat Pertumbuhan (BB/TB)</span>
+          <span>Riwayat Ukur (BB/TB)</span>
           <button class="btn btn-sm btn-outline" @click="showGrowthForm = !showGrowthForm">
-            + Input Baru
+            {{ showGrowthForm ? 'Tutup' : '+ Input Baru' }}
           </button>
         </div>
-        <GrowthChart :records="growthRecords" :birth-date="kidDetail.birth_date" :gender="kidDetail.gender" />
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Usia</th><th>BB (kg)</th><th>TB (cm)</th><th>Status Gizi</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr v-for="r in growthRecords" :key="r.id">
+                <td>{{ formatDate(r.date_measured) }}</td>
+                <td>{{ formatAge(r.date_measured) }}</td>
+                <td>{{ r.weight }}</td>
+                <td>{{ r.height || '-' }}</td>
+                <td>
+                  <span class="badge" :class="statusBadgeClass(r)">{{ statusLabel(r) }}</span>
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-outline" style="padding:0.2rem 0.4rem;font-size:0.7rem;" @click="editGrowth(r)">✏️</button>
+                  <button class="btn btn-sm btn-outline" style="padding:0.2rem 0.4rem;font-size:0.7rem;border-color:#dc3545;color:#dc3545;" @click="confirmDeleteGrowth(r)">🗑️</button>
+                </td>
+              </tr>
+              <tr v-if="!growthRecords.length">
+                <td colspan="6" class="text-center" style="padding:1.5rem;color:var(--secondary);">Belum ada riwayat ukur</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div v-if="showGrowthForm" class="growth-form mt-1">
           <div class="form-row">
             <div class="form-group">
@@ -101,20 +127,20 @@
             </div>
             <div class="form-group">
               <label class="form-label">Status Gizi</label>
-              <select v-model="newGrowth.nutritional_status" class="form-select">
-                <option value="">Normal</option>
-                <option value="stunting">Stunting</option>
-                <option value="gizi-kurang">Gizi Kurang</option>
-                <option value="gizi-buruk">Gizi Buruk</option>
-                <option value="overweight">Overweight</option>
-              </select>
+              <input :value="autoCalcStatus(newGrowth.weight, newGrowth.date_measured)" class="form-input" readonly style="background:#f1f5f9;">
             </div>
           </div>
-          <button class="btn btn-primary btn-sm" @click="saveGrowth" :disabled="savingGrowth">
+          <p v-if="newGrowth.weight && newGrowth.date_measured" style="font-size:0.75rem;color:var(--secondary);margin:0.25rem 0 0;">
+            Status gizi dihitung otomatis berdasarkan grafik KMS WHO (BB/U)
+          </p>
+          <button class="btn btn-primary btn-sm mt-1" @click="saveGrowth" :disabled="savingGrowth">
             {{ savingGrowth ? 'Menyimpan...' : 'Simpan' }}
           </button>
         </div>
       </div>
+    </div>
+
+    <div v-if="kidDetail" class="grid grid-2 mb-2">
       <div v-if="vaccineHistory.length > 0" class="card">
         <div class="card-header">Riwayat Lengkap Vaksinasi</div>
         <div class="table-container">
@@ -132,16 +158,15 @@
           </table>
         </div>
       </div>
-    </div>
-
-    <div v-if="kidDetail" class="card mb-2" style="max-width:50%;">
-      <div class="card-header flex-between">
-        <span @click="showImmunization = !showImmunization" style="cursor:pointer;user-select:none;">
-          {{ showImmunization ? '👁' : '👁‍🗨' }} Daftar Riwayat Imunisasi
-        </span>
-        <router-link :to="`/ekohort/pelayanan`" class="btn btn-sm btn-primary">Input Vaksin</router-link>
+      <div class="card mb-2" style="max-width:100%;">
+        <div class="card-header flex-between">
+          <span @click="showImmunization = !showImmunization" style="cursor:pointer;user-select:none;">
+            {{ showImmunization ? '👁' : '👁‍🗨' }} Daftar Riwayat Imunisasi
+          </span>
+          <router-link :to="`/ekohort/pelayanan`" class="btn btn-sm btn-primary">Input Vaksin</router-link>
+        </div>
+        <VaccineChecklist v-show="showImmunization" :schedule="vaccineSchedule" />
       </div>
-      <VaccineChecklist v-show="showImmunization" :schedule="vaccineSchedule" />
     </div>
   </div>
 </template>
@@ -150,8 +175,10 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { eKohortApi } from '../../api'
+import { getWHOZScore } from '../../data/whoGrowthStandards'
 import GrowthChart from '../../components/eKohort/GrowthChart.vue'
 import VaccineChecklist from '../../components/eKohort/VaccineChecklist.vue'
+import Swal from 'sweetalert2'
 
 const route = useRoute()
 const router = useRouter()
@@ -171,6 +198,41 @@ const newGrowth = ref({
   weight: null, height: null, date_measured: new Date().toISOString().slice(0, 10),
   nutritional_status: '', notes: ''
 })
+
+function calcAgeMonths(birthDate, dateMeasured) {
+  if (!birthDate || !dateMeasured) return null
+  const birth = new Date(birthDate)
+  const measured = new Date(dateMeasured)
+  return (measured - birth) / (30.4375 * 24 * 60 * 60 * 1000)
+}
+
+function autoCalcStatus(weight, dateMeasured) {
+  if (!weight || !dateMeasured || !kidDetail.value) return ''
+  const ageMonths = calcAgeMonths(kidDetail.value.birth_date, dateMeasured)
+  if (ageMonths === null || ageMonths < 0 || ageMonths > 60) return ''
+  const z3 = getWHOZScore(kidDetail.value.gender, ageMonths, -3)
+  const z2 = getWHOZScore(kidDetail.value.gender, ageMonths, -2)
+  const z1 = getWHOZScore(kidDetail.value.gender, ageMonths, 2)
+  if (z3 === null || z2 === null || z1 === null) return ''
+  if (weight < z3) return 'gizi-buruk'
+  if (weight < z2) return 'gizi-kurang'
+  if (weight > z1) return 'overweight'
+  return ''
+}
+
+function statusLabel(r) {
+  const s = r.nutritional_status || autoCalcStatus(r.weight, r.date_measured)
+  if (!s) return 'Normal'
+  if (s === 'gizi-kurang' || s === 'stunting') return 'Warning'
+  return 'Danger'
+}
+
+function statusBadgeClass(r) {
+  const s = r.nutritional_status || autoCalcStatus(r.weight, r.date_measured)
+  if (!s) return 'badge-success'
+  if (s === 'gizi-kurang' || s === 'stunting') return 'badge-warning'
+  return 'badge-danger'
+}
 
 onMounted(async () => {
   if (route.params.id) {
@@ -208,7 +270,13 @@ async function saveGrowth() {
   if (!kidDetail.value?.id) return
   savingGrowth.value = true
   try {
-    await eKohortApi.kmsAddGrowth(kidDetail.value.id, newGrowth.value)
+    const payload = { ...newGrowth.value }
+    payload.nutritional_status = autoCalcStatus(payload.weight, payload.date_measured)
+    if (newGrowth.value.editingId) {
+      await eKohortApi.kmsUpdateGrowth(newGrowth.value.editingId, payload)
+    } else {
+      await eKohortApi.kmsAddGrowth(kidDetail.value.id, payload)
+    }
     const { data } = await eKohortApi.kmsDetail(kidDetail.value.id)
     growthRecords.value = data.growthRecords || []
     showGrowthForm.value = false
@@ -216,13 +284,63 @@ async function saveGrowth() {
       weight: null, height: null, date_measured: new Date().toISOString().slice(0, 10),
       nutritional_status: '', notes: ''
     }
-  } catch (e) { alert('Gagal: ' + (e.response?.data?.error || e.message)) }
+    Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data pertumbuhan disimpan', timer: 1200, showConfirmButton: false })
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
+  }
   finally { savingGrowth.value = false }
+}
+
+function editGrowth(r) {
+  newGrowth.value = {
+    weight: r.weight,
+    height: r.height,
+    date_measured: r.date_measured ? r.date_measured.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    nutritional_status: r.nutritional_status || '',
+    notes: r.notes || '',
+    editingId: r.id
+  }
+  showGrowthForm.value = true
+}
+
+function confirmDeleteGrowth(r) {
+  Swal.fire({
+    title: 'Hapus Riwayat Ukur?',
+    text: `Tanggal ${formatDate(r.date_measured)} — BB ${r.weight} kg akan dihapus`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Ya, Hapus',
+    cancelButtonText: 'Batal'
+  }).then(async result => {
+    if (result.isConfirmed) {
+      try {
+        await eKohortApi.kmsDeleteGrowth(r.id)
+        const { data } = await eKohortApi.kmsDetail(kidDetail.value.id)
+        growthRecords.value = data.growthRecords || []
+        Swal.fire({ icon: 'success', title: 'Terhapus', timer: 1200, showConfirmButton: false })
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
+      }
+    }
+  })
 }
 
 function formatDate(d) {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('id-ID')
+}
+
+function formatAge(dateMeasured) {
+  if (!dateMeasured || !kidDetail.value?.birth_date) return '-'
+  const m = calcAgeMonths(kidDetail.value.birth_date, dateMeasured)
+  if (m === null || m < 0) return '-'
+  const months = Math.floor(m)
+  if (months < 24) return `${months} bln`
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  return rem ? `${years} thn ${rem} bln` : `${years} thn`
 }
 </script>
 
