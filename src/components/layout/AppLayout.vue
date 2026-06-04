@@ -10,6 +10,10 @@
     <button class="sidebar-toggle-float" @click="toggleCollapse" :title="collapsed ? 'Buka navigasi' : 'Tutup navigasi'">
       {{ collapsed ? '☰' : '✕' }}
     </button>
+    <div class="offline-badge" :class="{ online }" :title="online ? 'Terhubung' : 'Offline'">
+      <span class="dot"></span>
+      <span>{{ online ? 'Online' : 'Offline' }}</span>
+    </div>
     <div v-if="!online" class="offline-banner">
       <span>&#9888; Offline — data akan dikirim saat koneksi tersedia ({{ pendingSync }} antrean)</span>
     </div>
@@ -107,5 +111,29 @@ provide('toggleCollapse', toggleCollapse)
 .offline-banner.syncing {
   background: #ffc107;
   color: #1e293b;
+}
+.offline-badge {
+  position: fixed;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: #dc3545;
+  color: #fff;
+  z-index: 9998;
+  opacity: 0.85;
+}
+.offline-badge.online {
+  background: #198754;
+}
+.offline-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
 }
 </style>

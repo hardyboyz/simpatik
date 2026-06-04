@@ -9,11 +9,11 @@
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label class="form-label">Email</label>
-          <input v-model="email" type="email" class="form-input" placeholder="admin@imunisasi.id" required>
+          <input v-model="email" type="email" class="form-input" placeholder="" required>
         </div>
         <div class="form-group">
           <label class="form-label">Password</label>
-          <input v-model="password" type="password" class="form-input" placeholder="••••••••" required>
+          <input v-model="password" type="password" class="form-input" placeholder="" required>
         </div>
         <div v-if="error" style="color: var(--danger); font-size: 0.875rem; margin-bottom: 0.75rem;">{{ error }}</div>
         <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.625rem;" :disabled="loading">

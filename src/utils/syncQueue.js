@@ -1,6 +1,6 @@
 const DB_NAME = 'offline-sync'
 const STORE_NAME = 'requests'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -9,11 +9,20 @@ function openDB() {
       const db = e.target.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
+      } else if (e.oldVersion < 2) {
+        // Version upgrade — clear old potentially corrupted data
+        const tx = e.target.transaction
+        tx.objectStore(STORE_NAME).clear()
       }
     }
     req.onsuccess = (e) => resolve(e.target.result)
     req.onerror = (e) => reject(e.target.error)
   })
+}
+
+function safeParse(str) {
+  if (!str) return null
+  try { return JSON.parse(str) } catch { return null }
 }
 
 export async function addToQueue(method, url, headers, body) {
@@ -63,13 +72,16 @@ export async function processQueue(apiClient) {
   let failed = 0
 
   for (const item of pending) {
+    const data = safeParse(item.body)
+    const headers = safeParse(item.headers) || {}
+    if (data === null && item.body) {
+      // corrupted body — remove and skip
+      await removeFromQueue(item.id)
+      failed++
+      continue
+    }
     try {
-      await apiClient({
-        method: item.method,
-        url: item.url,
-        data: item.body ? JSON.parse(item.body) : undefined,
-        headers: item.headers ? JSON.parse(item.headers) : {}
-      })
+      await apiClient({ method: item.method, url: item.url, data, headers })
       await removeFromQueue(item.id)
       processed++
     } catch {
