@@ -101,7 +101,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import { eKohortApi } from '../../api'
+import { eKohortApi, kidsApi } from '../../api'
+import { cacheKids, searchCachedKids } from '../../utils/kidsCache'
 import Swal from 'sweetalert2'
 
 const auth = useAuthStore()
@@ -134,6 +135,12 @@ const filteredQueue = computed(() => {
 
 onMounted(async () => {
   await Promise.all([loadQueue(), loadBatches()])
+  if (navigator.onLine) {
+    try {
+      const { data } = await kidsApi.list({ limit: 10000 })
+      if (data) cacheKids(data)
+    } catch {}
+  }
 })
 
 async function loadQueue() {
@@ -155,7 +162,11 @@ async function searchQuick() {
   try {
     const { data } = await eKohortApi.kmsSearch(quickSearch.value)
     quickResults.value = data
-  } catch { quickResults.value = [] }
+    if (data) cacheKids(data)
+  } catch {
+    const cached = await searchCachedKids(quickSearch.value)
+    quickResults.value = cached
+  }
 }
 
 function confirmVaccinate(q, v) {
@@ -191,10 +202,25 @@ function confirmVaccinate(q, v) {
 
 async function addToQueue(kid) {
   try {
-    await eKohortApi.queueAdd({ kid_id: kid.id })
+    const res = await eKohortApi.queueAdd({ kid_id: kid.id })
+    if (res.data?.offline) {
+      queue.value.push({
+        id: Date.now(),
+        queue_number: queue.value.length + 1,
+        kid_id: kid.id,
+        kid_name: kid.name,
+        nik: kid.nik,
+        mother_name: kid.mother_name,
+        village_name: kid.village_name,
+        status: 'waiting',
+        given_vaccines: [],
+        officer: null
+      })
+    } else {
+      await loadQueue()
+    }
     quickResults.value = []
     quickSearch.value = ''
-    await loadQueue()
     Swal.fire({ icon: 'success', title: 'Ditambahkan!', text: `${kid.name} masuk antrean`, timer: 1500, showConfirmButton: false })
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
@@ -205,13 +231,21 @@ async function quickVaccinate(q, vaccineCode, batchOverride) {
   const key = q.id + '-' + vaccineCode
   vaccinating.value = key
   try {
-    const { data } = await eKohortApi.quickVaccinate({
+    const res = await eKohortApi.quickVaccinate({
       kid_id: q.kid_id,
       vaccine_code: vaccineCode,
       batch_no: batchOverride || selectedBatch?.batch_no || null,
       officer: auth.userName
     })
-    await loadQueue()
+    if (res.data?.offline) {
+      const entry = queue.value.find(x => x.id === q.id || x.kid_id === q.kid_id)
+      if (entry) {
+        if (!entry.given_vaccines) entry.given_vaccines = []
+        if (!entry.given_vaccines.includes(vaccineCode)) entry.given_vaccines.push(vaccineCode)
+      }
+    } else {
+      await loadQueue()
+    }
     Swal.fire({ icon: 'success', title: 'Berhasil!', text: `${q.kid_name} - ${vaccineCode} tercatat`, timer: 1200, showConfirmButton: false })
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
@@ -252,8 +286,12 @@ function confirmCancel(q) {
 
 async function cancelQueue(q) {
   try {
-    await eKohortApi.queueRemove(q.id)
-    await loadQueue()
+    const res = await eKohortApi.queueRemove(q.id)
+    if (res.data?.offline) {
+      queue.value = queue.value.filter(x => x.id !== q.id && x.kid_id !== q.kid_id)
+    } else {
+      await loadQueue()
+    }
     Swal.fire({ icon: 'success', title: 'Dibatalkan', text: `Antrean ${q.kid_name} dihapus`, timer: 1200, showConfirmButton: false })
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
@@ -262,8 +300,13 @@ async function cancelQueue(q) {
 
 async function markDone(q) {
   try {
-    await eKohortApi.queueUpdate(q.id, { status: 'done', officer: auth.userName })
-    await loadQueue()
+    const res = await eKohortApi.queueUpdate(q.id, { status: 'done', officer: auth.userName })
+    if (res.data?.offline) {
+      const entry = queue.value.find(x => x.id === q.id || x.kid_id === q.kid_id)
+      if (entry) { entry.status = 'done'; entry.officer = auth.userName }
+    } else {
+      await loadQueue()
+    }
     Swal.fire({ icon: 'success', title: 'Selesai', text: `Antrean ${q.kid_name} selesai`, timer: 1200, showConfirmButton: false })
   } catch (e) {
     Swal.fire({ icon: 'error', title: 'Gagal', text: e.response?.data?.error || e.message })
