@@ -10,28 +10,75 @@
     <button class="sidebar-toggle-float" @click="toggleCollapse" :title="collapsed ? 'Buka navigasi' : 'Tutup navigasi'">
       {{ collapsed ? '☰' : '✕' }}
     </button>
+    <div v-if="!online" class="offline-banner">
+      <span>&#9888; Offline — data akan dikirim saat koneksi tersedia ({{ pendingSync }} antrean)</span>
+    </div>
+    <div v-else-if="pendingSync > 0" class="offline-banner syncing">
+      <span>&#8635; Menyinkronkan {{ pendingSync }} data ...</span>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, provide } from 'vue'
+import { ref, provide, onMounted, onUnmounted } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Navbar from './Navbar.vue'
+import { getQueueSize, trySyncQueue } from '../../api'
 
 const sidebarOpen = ref(false)
 const collapsed = ref(false)
+const online = ref(navigator.onLine)
+const pendingSync = ref(0)
 
-function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value
+let syncTimer = null
+
+async function updatePending() {
+  pendingSync.value = await getQueueSize()
 }
 
-function closeSidebar() {
-  sidebarOpen.value = false
+async function handleOnline() {
+  online.value = true
+  const queueBefore = pendingSync.value
+  const result = await trySyncQueue()
+  if (result.processed > 0 || result.failed > 0) {
+    await updatePending()
+  }
+  if (pendingSync.value === 0 && queueBefore > 0) {
+    window.dispatchEvent(new CustomEvent('sync-complete'))
+  }
 }
 
-function toggleCollapse() {
-  collapsed.value = !collapsed.value
+function handleOffline() {
+  online.value = false
+  updatePending()
 }
+
+function handleSyncChange() {
+  updatePending()
+}
+
+onMounted(() => {
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+  window.addEventListener('sync-queue-changed', handleSyncChange)
+  updatePending()
+  syncTimer = setInterval(() => {
+    if (navigator.onLine && pendingSync.value > 0) {
+      handleOnline()
+    }
+  }, 15000)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
+  window.removeEventListener('sync-queue-changed', handleSyncChange)
+  if (syncTimer) clearInterval(syncTimer)
+})
+
+function toggleSidebar() { sidebarOpen.value = !sidebarOpen.value }
+function closeSidebar() { sidebarOpen.value = false }
+function toggleCollapse() { collapsed.value = !collapsed.value }
 
 provide('sidebarOpen', sidebarOpen)
 provide('sidebarCollapsed', collapsed)
@@ -39,3 +86,26 @@ provide('toggleSidebar', toggleSidebar)
 provide('closeSidebar', closeSidebar)
 provide('toggleCollapse', toggleCollapse)
 </script>
+
+<style scoped>
+.offline-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #dc3545;
+  color: #fff;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.offline-banner.syncing {
+  background: #ffc107;
+  color: #1e293b;
+}
+</style>

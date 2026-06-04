@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { addToQueue, getQueueSize, processQueue } from '../utils/syncQueue'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
@@ -15,7 +16,26 @@ api.interceptors.request.use(config => {
 
 api.interceptors.response.use(
   response => response,
-  error => {
+  async error => {
+    if (!error.response && error.request) {
+      const cfg = error.config
+      if (cfg && ['post', 'put', 'patch', 'delete'].includes(cfg.method)) {
+        try {
+          await addToQueue(
+            cfg.method.toUpperCase(),
+            cfg.url,
+            JSON.stringify(cfg.headers || {}),
+            cfg.data ? JSON.stringify(cfg.data) : null
+          )
+          window.dispatchEvent(new CustomEvent('sync-queue-changed'))
+          return { data: { offline: true, queued: true } }
+        } catch {}
+      }
+      // GET failures while offline — return empty so the app doesn't break
+      if (cfg && cfg.method === 'get') {
+        return { data: null }
+      }
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
@@ -24,6 +44,17 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+export async function trySyncQueue() {
+  if (!navigator.onLine) return { processed: 0, failed: 0 }
+  const result = await processQueue(api)
+  if (result.processed > 0 || result.failed > 0) {
+    window.dispatchEvent(new CustomEvent('sync-queue-changed'))
+  }
+  return result
+}
+
+export { getQueueSize }
 
 export default api
 
