@@ -3,7 +3,9 @@ import { ref, computed } from 'vue'
 import { authApi } from '../api'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  let initialUser = null
+  try { initialUser = JSON.parse(localStorage.getItem('user')) } catch {}
+  const user = ref(initialUser)
   const token = ref(localStorage.getItem('token') || '')
   const loading = ref(false)
 
@@ -38,7 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = data.token
       user.value = data.user
       localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
+      if (data.user) localStorage.setItem('user', JSON.stringify(data.user))
       return data
     } finally {
       loading.value = false
@@ -57,7 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await authApi.me()
       user.value = data
-      localStorage.setItem('user', JSON.stringify(data))
+      if (data) localStorage.setItem('user', JSON.stringify(data))
       return true
     } catch {
       await logout()
