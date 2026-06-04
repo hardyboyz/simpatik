@@ -1,10 +1,16 @@
 import axios from 'axios'
 import { addToQueue, getQueueSize, processQueue } from '../utils/syncQueue'
+import { cacheResponse, getCachedResponse, invalidateCache } from '../utils/requestCache'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
   headers: { 'Content-Type': 'application/json' }
 })
+
+function cacheKey(config) {
+  const params = config.params ? JSON.stringify(config.params) : ''
+  return (config.baseURL || '') + config.url + params
+}
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
@@ -15,7 +21,15 @@ api.interceptors.request.use(config => {
 })
 
 api.interceptors.response.use(
-  response => response,
+  async response => {
+    if (response.config.method === 'get') {
+      cacheResponse(cacheKey(response.config), response.data)
+    }
+    if (['post', 'put', 'patch', 'delete'].includes(response.config.method)) {
+      invalidateCache(response.config.url)
+    }
+    return response
+  },
   async error => {
     if (!error.response && error.request) {
       const cfg = error.config
@@ -31,9 +45,9 @@ api.interceptors.response.use(
           return { data: { offline: true, queued: true } }
         } catch {}
       }
-      // GET failures while offline — return empty so the app doesn't break
       if (cfg && cfg.method === 'get') {
-        return { data: null }
+        const cached = await getCachedResponse(cacheKey(cfg))
+        if (cached) return { data: cached }
       }
     }
     if (error.response?.status === 401) {
